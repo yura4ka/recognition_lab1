@@ -8,14 +8,17 @@ def out_of_box():
     df = undersample(df)
     X = df.drop(columns=["Outcome"])
     y = df["Outcome"]
+    random_state = 8323
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, stratify=y, random_state=random_state
+    )
 
     nb_model = GaussianNB()
     nb_model.fit(X_train, y_train)
 
     y_pred = nb_model.predict(X_test)
-    evaluate_model(y_test, y_pred, "out-of-box")
+    evaluate_model(y_test, y_pred, "undersampled-out-of-box")
 
 
 if __name__ == "__main__":

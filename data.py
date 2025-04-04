@@ -9,7 +9,6 @@ from sklearn.utils import resample
 
 
 def undersample(df):
-    print("Counts after: ", df["Outcome"].value_counts())
     df_majority = df[df["Outcome"] == 0]
     df_minority = df[df["Outcome"] == 1]
 
@@ -22,7 +21,6 @@ def undersample(df):
 
     df_balanced = pd.concat([df_majority_downsampled, df_minority])
     df_balanced = df_balanced.sample(frac=1, random_state=42).reset_index(drop=True)
-    print("Counts after: ", df_balanced["Outcome"].value_counts())
     return df_balanced
 
 
@@ -68,11 +66,19 @@ def _format_dataset(df: pd.DataFrame):
 
 
 def _plot_outcome_distribution(df: pd.DataFrame, title=""):
-    df["Outcome"].value_counts().plot(figsize=(6, 5), kind="bar")
+    outcome_counts = df["Outcome"].value_counts()
+    ax = outcome_counts.plot(
+        figsize=(6, 5), kind="bar", color=["skyblue", "salmon"], edgecolor="black"
+    )
+    for i, count in enumerate(outcome_counts):
+        ax.text(i, count + 1, str(count), ha="center", va="bottom", fontsize=11)
+
     plt.title("Diabetes Outcome Distribution")
     plt.xlabel("Outcome (0 = Non-Diabetic, 1 = Diabetic)")
     plt.ylabel("Count")
     plt.xticks(rotation=0)
+    plt.tight_layout()
+
     plt.savefig(
         f"./images/{f'{title.lower()}_' if title else ''}outcome_distributions.png"
     )
@@ -81,9 +87,23 @@ def _plot_outcome_distribution(df: pd.DataFrame, title=""):
 
 def _plot_features(df: pd.DataFrame, title=""):
     df = df.drop("Outcome", axis=1)
-    df.hist(figsize=(12, 8), bins=20, edgecolor="black")
-    plt.suptitle("Feature Distributions", fontsize=16)
-    plt.savefig(f"./images/{f'{title.lower()}_' if title else ''}features.png")
+
+    num_features = len(df.columns)
+    num_cols = 3
+    num_rows = (num_features + num_cols - 1) // num_cols
+
+    plt.figure(figsize=(num_cols * 4, num_rows * 3))
+
+    for idx, column in enumerate(df.columns, 1):
+        plt.subplot(num_rows, num_cols, idx)
+        sns.histplot(data=df[column], kde=True)
+        plt.title(column)
+        plt.xlabel("")
+
+    plt.tight_layout()
+    plt.suptitle("Feature Distributions", fontsize=16, y=1.02)
+    filename = f"./images/{f'{title.lower()}_' if title else ''}features.png"
+    plt.savefig(filename, bbox_inches="tight")
     plt.close()
 
 
@@ -127,7 +147,34 @@ def _plot_feature_importance(df: pd.DataFrame, title=""):
     plt.close()
 
 
-def _plot_confusion_matrix(y_test, y_pred, type):
+def _plot_correlation_heatmap(df, title=""):
+    df = df.drop(columns=["Outcome"])
+    plt.figure(figsize=(10, 8))
+    correlation_matrix = df.corr()
+    mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
+
+    sns.heatmap(
+        correlation_matrix,
+        mask=mask,
+        cmap="coolwarm",
+        vmin=0,
+        vmax=1,
+        center=0.3,
+        square=True,
+        linewidths=0.5,
+        cbar_kws={"shrink": 0.5},
+        annot=True,
+    )
+    plt.title("Correlation Heatmap")
+    plt.tight_layout()
+    plt.savefig(
+        f"./images/{f'{title.lower()}_' if title else ''}correlation_heatmap.png",
+        bbox_inches="tight",
+    )
+    plt.close()
+
+
+def _plot_confusion_matrix(y_test, y_pred, type, accuracy):
     plt.figure(figsize=(5, 4))
     sns.heatmap(
         confusion_matrix(
@@ -143,11 +190,12 @@ def _plot_confusion_matrix(y_test, y_pred, type):
     )
     plt.xlabel("Predicted")
     plt.ylabel("Actual")
-    plt.title(f"Confusion Matrix ({type})")
-    plt.show()
+    plt.title(f"Confusion Matrix ({type}) ({accuracy:.2f})")
+    plt.savefig(f"./results/{type}_confusion_matrix.png", bbox_inches="tight")
+    plt.close()
 
 
-def _plot_roc(y_test, y_pred, type):
+def _plot_roc(y_test, y_pred, type, accuracy):
     fpr, tpr, _thresholds = roc_curve(y_test, y_pred)
     roc_auc = auc(fpr, tpr)
 
@@ -158,9 +206,10 @@ def _plot_roc(y_test, y_pred, type):
     plt.ylim([0.0, 1.0])
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate")
-    plt.title(f"ROC Curve ({type})")
+    plt.title(f"ROC Curve ({type}) ({accuracy:.2f})")
     plt.legend(loc="lower right")
-    plt.show()
+    plt.savefig(f"./results/{type}_roc.png", bbox_inches="tight")
+    plt.close()
 
 
 def get_dataset():
@@ -170,18 +219,19 @@ def get_dataset():
 
 def evaluate_model(y_test, y_pred, type):
     accuracy = accuracy_score(y_test, y_pred)
-    print(f"Accuracy: {accuracy:.2f}")
-    _plot_confusion_matrix(y_test, y_pred, type)
-    _plot_roc(y_test, y_pred, type)
+    print(f"Accuracy ({type}): {accuracy:.2f}")
+    _plot_confusion_matrix(y_test, y_pred, type, accuracy)
+    _plot_roc(y_test, y_pred, type, accuracy)
     plt.show()
 
 
 if __name__ == "__main__":
     df = get_dataset()
     df = undersample(df)
-    title = "Undersampled 2"
+    title = "Undersampled"
     sns.set_theme(style="whitegrid")
     _plot_features(df, title)
     _plot_outcome_distribution(df, title)
     _plot_feature_importance(df, title)
     _plot_feature_distributions(df, title)
+    _plot_correlation_heatmap(df, title)
